@@ -1,0 +1,14 @@
+name: DVB HB
+channelmaps:
+    Demo:
+        name: Demo Channel Map
+        provider: DVB
+        channels:
+            1:
+                name: Channel 1
+                type: DASH
+                source: static/demo/channel1.mpd
+            2:
+                name: Channel 2
+                type: DASH
+                source: static/demo/channel2.mpd
