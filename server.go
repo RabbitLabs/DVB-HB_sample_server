@@ -1,30 +1,32 @@
 package main
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"log"
 	"mime"
 	"net/http"
 	"strings"
 )
 
-// var deviceconfig = DeviceConfig{
-// 	"DVB HB",
-// 	map[string]ChannelMap{
-// 		"Demo": {
-// 			"Demo Channel",
-// 			map[int]Channel{
-// 				1: {"Channel 1", "DASH", "channel1.mpd"},
-// 			},
-// 		},
-// 	},
-// }
+// this is where static files for the embedded DVB-I client goes
+//go:embed static
+var static embed.FS
+
+// change root of embedded FS 
+var htmlstatic, lapin = fs.Sub(static, "static")
+
+// server components to serve from static FS
+var fileServer = http.FileServer(http.FS(static))
+
+// server components to serve demo media from OS FS
+var staticMediaServer = http.FileServer(http.Dir("./demo"))
 
 var deviceconfig DeviceConfig
-var fileServer = http.FileServer(http.Dir("./static"))
 
 func configurationHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript")
+	w.Header().Set("Content-Type", "application/htmlstatic")
 
 	fmt.Fprintf(w, "INSTALL_LOCATION=\"http://%s\";\n", r.Host)
 }

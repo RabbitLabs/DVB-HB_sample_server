@@ -7,8 +7,8 @@ channelmaps:
             1:
                 name: Channel 1
                 type: DASH
-                source: static/demo/channel1.mpd
+                source: demo/channel1.mpd
             2:
                 name: Channel 2
                 type: DASH
-                source: static/demo/channel2.mpd
+                source: demo/channel2.mpd
