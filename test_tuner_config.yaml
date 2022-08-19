@@ -1,0 +1,24 @@
+name: rai
+provider: RAI Italia
+providerurl: www.rai.it
+transcode:
+  command: ffmpeg
+  args: -f mpegts -analyzeduration 1M -probesize 1M -i udp://127.0.0.1:${port}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 7M -minrate 6M -maxrate 7M -bufsize 14M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd
+frequencies:
+  A: 
+    tunestring: A
+    file: r2.ts
+    bitrate: 24882354
+    tsid: 2
+    onid: 11 
+  B: 
+    tunestring: B
+    port: 5004
+  C:
+    tunestring: C
+    extern:
+       command: tsp
+       args: -I dvb -a 0 --delivery-system DVB-S2 -f 11766000000 -m 8-PSK -s 29900000 --polarity vertical --satellite-number 1 -P zap RAI1HD
+
+
+

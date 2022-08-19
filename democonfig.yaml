@@ -1,14 +1,18 @@
 name: DVB HB
 channelmaps:
     Demo:
-        name: Demo Channel Map
+        name: HB Demo Channel Map
         provider: DVB
         channels:
             1:
-                name: Channel 1
-                type: DASH
-                source: demo/channel1.mpd
+                name: Big Buck Bunny
+                source: video/bunny/dash.mpd
             2:
-                name: Channel 2
-                type: DASH
-                source: demo/channel2.mpd
+                name: Sintel
+                source: video/sintel/dash.mpd
+            3:
+                name: Cosmic Laundromat
+                source: video/cosmic/dash.mpd
+            4:
+                name: Live
+                source: video/live/out.mpd    

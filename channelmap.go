@@ -7,6 +7,13 @@ import (
 )
 
 const ChannelMapPath = "/channelmap/"
+const DynamicContentPath = "/dynamic/"
+
+func RegisterDynamicChannelMap(m DynamicChannelMap) {
+	c := m.GetChannelInfo()
+
+	deviceconfig.dynamicchannelmaps[c.Provider] = m
+}
 
 func channelmapHandler(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, ChannelMapPath) {
@@ -43,8 +50,15 @@ func channelmapHandler(w http.ResponseWriter, r *http.Request) {
 
 	// check if channel map exists
 	if !exists {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
+		// try to find channel map
+		dynamicchannelmap, exists := deviceconfig.dynamicchannelmaps[splitpath[0]]
+
+		if !exists {
+			http.Error(w, "404 not found.", http.StatusNotFound)
+			return
+		}
+
+		channelmap = dynamicchannelmap.GetChannelMap()
 	}
 
 	switch splitpath[1] {
@@ -55,36 +69,81 @@ func channelmapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func dynamicHandler(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, DynamicContentPath) {
+		http.Error(w, "404 not found.", http.StatusNotFound)
+		return
+	}
+
+	if r.Method != "GET" {
+		http.Error(w, "Method is not supported.", http.StatusNotFound)
+		return
+	}
+
+	subpath := r.URL.Path[len(DynamicContentPath):]
+	subpath = strings.TrimLeft(subpath, "/")
+
+	splitpath := strings.SplitN(subpath, "/", 2)
+
+	// we must have two part path
+	if len(splitpath) != 2 {
+		http.Error(w, "404 not found.", http.StatusNotFound)
+		return
+	}
+
+	// try to find channel map
+	dynamicchannelmap, exists := deviceconfig.dynamicchannelmaps[splitpath[0]]
+
+	if !exists {
+		http.Error(w, "404 not found.", http.StatusNotFound)
+		return
+	}
+
+	dynamicchannelmap.ServeDynamicContent(w, r, splitpath[1] )
+}
+
+func (channelmap *ChannelMap) WriteConfig(w http.ResponseWriter, host string, name string) {
+	w.Write([]byte("<sld:ProviderOffering>\n"))
+	w.Write([]byte("<sld:Provider>\n"))
+	w.Write([]byte("<sld:Name>"))
+	w.Write([]byte(channelmap.Provider))
+	w.Write([]byte("</sld:Name>\n"))
+	w.Write([]byte("</sld:Provider>\n"))
+
+	//
+	w.Write([]byte("<sld:ServiceListOffering>\n"))
+	w.Write([]byte("<sld:ServiceListName>"))
+	w.Write([]byte(name))
+	w.Write([]byte("</sld:ServiceListName>\n"))
+	w.Write([]byte("<sld:ServiceListURI contentType=\"application/xml\">\n"))
+	w.Write([]byte("<dvbisd:URI>\n"))
+	fmt.Fprintf(w, "http://%s%s%s/serviceslist.xml", host, ChannelMapPath, name)
+	w.Write([]byte("</dvbisd:URI>\n"))
+	w.Write([]byte("</sld:ServiceListURI>\n"))
+	w.Write([]byte("<sld:TargetCountry>DEU</sld:TargetCountry>\n"))
+	w.Write([]byte("</sld:ServiceListOffering>\n"))
+
+	w.Write([]byte("</sld:ProviderOffering>\n"))
+}
+
 func (config DeviceConfig) channelmapListWrite(w http.ResponseWriter, host string) {
 	w.Write([]byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"))
 	w.Write([]byte("<sld:ServiceListEntryPoints xmlns:sld=\"urn:dvb:metadata:servicelistdiscovery:2019\" xmlns:dvbisd=\"urn:dvb:metadata:servicediscovery:2019\" xmlns:mpeg7=\"urn:tva:mpeg7:2008\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"urn:dvb:metadata:servicelistdiscovery:2019 dvbi_service_list_discovery_v1.0.xsd\">"))
 	w.Write([]byte("<sld:ServiceListRegistryEntity regulatorFlag=\"false\">\n"))
 	w.Write([]byte("</sld:ServiceListRegistryEntity>\n"))
 
-	// list all channels maps
+	// list all static channels maps
 	for name, channelmap := range config.ChannelMaps {
 		// provider header
-		w.Write([]byte("<sld:ProviderOffering>\n"))
-		w.Write([]byte("<sld:Provider>\n"))
-		w.Write([]byte("<sld:Name>"))
-		w.Write([]byte(channelmap.Provider))
-		w.Write([]byte("</sld:Name>\n"))
-		w.Write([]byte("</sld:Provider>\n"))
+		channelmap.WriteConfig(w, host, name)
+	}
 
-		//
-		w.Write([]byte("<sld:ServiceListOffering>\n"))
-		w.Write([]byte("<sld:ServiceListName>"))
-		w.Write([]byte(name))
-		w.Write([]byte("</sld:ServiceListName>\n"))
-		w.Write([]byte("<sld:ServiceListURI contentType=\"application/xml\">\n"))
-		w.Write([]byte("<dvbisd:URI>\n"))
-		fmt.Fprintf(w, "http://%s%s%s/serviceslist.xml", host, ChannelMapPath, name)
-		w.Write([]byte("</dvbisd:URI>\n"))
-		w.Write([]byte("</sld:ServiceListURI>\n"))
-		w.Write([]byte("<sld:TargetCountry>DEU</sld:TargetCountry>\n"))
-		w.Write([]byte("</sld:ServiceListOffering>\n"))
-
-		w.Write([]byte("</sld:ProviderOffering>\n"))
+	// list all dynamic channel maps
+	for name, dynamicchannelmap := range config.dynamicchannelmaps {
+		// get quick description of channel map
+		channelmap := dynamicchannelmap.GetChannelInfo()
+		// provider header
+		channelmap.WriteConfig(w, host, name)
 	}
 
 	w.Write([]byte("</sld:ServiceListEntryPoints>\n"))
