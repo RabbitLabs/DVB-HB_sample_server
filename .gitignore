@@ -3,3 +3,5 @@
 /streams/*
 /amd64vv
 /server_amd64
+/temp/*
+/video/*
