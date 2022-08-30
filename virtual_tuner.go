@@ -70,7 +70,7 @@ type VirtualTuner struct {
 	pipestderr io.ReadCloser
 
 	// the golang channel to output MPEG TS Packets
-	tschannel TunerChannel
+	tschannel MpegTSChannel
 	// ticker to send timer event to read streams
 	streamticker *time.Ticker
 }
@@ -99,13 +99,13 @@ func NewVirtualTuner(ConfigFile string) (*VirtualTuner, error) {
 	}
 
 	vt.scanfrequencyindex = 0
-	vt.tschannel = make(TunerChannel, 128)
+	vt.tschannel = make(MpegTSChannel, 128)
 
 	return &vt, nil
 }
 
 // get the channel to receive MPEG TS Packets
-func (vt *VirtualTuner) GetChannel() TunerChannel {
+func (vt *VirtualTuner) GetChannel() MpegTSChannel {
 	return vt.tschannel
 }
 

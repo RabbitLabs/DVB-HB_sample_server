@@ -7,7 +7,6 @@ import (
 )
 
 const ChannelMapPath = "/channelmap/"
-const DynamicContentPath = "/dynamic/"
 
 func RegisterDynamicChannelMap(m DynamicChannelMap) {
 	c := m.GetChannelInfo()
@@ -69,39 +68,6 @@ func channelmapHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func dynamicHandler(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.URL.Path, DynamicContentPath) {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
-	}
-
-	if r.Method != "GET" {
-		http.Error(w, "Method is not supported.", http.StatusNotFound)
-		return
-	}
-
-	subpath := r.URL.Path[len(DynamicContentPath):]
-	subpath = strings.TrimLeft(subpath, "/")
-
-	splitpath := strings.SplitN(subpath, "/", 2)
-
-	// we must have two part path
-	if len(splitpath) != 2 {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
-	}
-
-	// try to find channel map
-	dynamicchannelmap, exists := deviceconfig.dynamicchannelmaps[splitpath[0]]
-
-	if !exists {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
-	}
-
-	dynamicchannelmap.ServeDynamicContent(w, r, splitpath[1] )
-}
-
 func (channelmap *ChannelMap) WriteConfig(w http.ResponseWriter, host string, name string) {
 	w.Write([]byte("<sld:ProviderOffering>\n"))
 	w.Write([]byte("<sld:Provider>\n"))
@@ -142,7 +108,7 @@ func (config DeviceConfig) channelmapListWrite(w http.ResponseWriter, host strin
 	for name, dynamicchannelmap := range config.dynamicchannelmaps {
 		// get quick description of channel map
 		channelmap := dynamicchannelmap.GetChannelInfo()
-		// provider header
+
 		channelmap.WriteConfig(w, host, name)
 	}
 

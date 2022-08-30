@@ -24,13 +24,19 @@ type ChannelMap struct {
 type DynamicChannelMap interface {
 	GetChannelInfo() ChannelMap
 	GetChannelMap() ChannelMap
+}
+
+type DynamicContent interface {
 	ServeDynamicContent(w http.ResponseWriter, r *http.Request, path string) 
 }
 
 type DeviceConfig struct {
 	Name        string                `yaml:"name"`
 	ChannelMaps map[string]ChannelMap `yaml:"channelmaps"`
+	TunerConfig CommandLineToolConfig `yaml:"tunerconfig"`
+	TranscodeConfig CommandLineToolConfig `yaml:"transcodeconfig"`
 	dynamicchannelmaps map[string]DynamicChannelMap
+	dynamiccontent map[string]DynamicContent
 }
 
 // transcoding 

@@ -1,4 +1,12 @@
 name: DVB HB
+tunerconfig:
+  command: tsp
+  args: -I dvb -a ${tunerindex} --delivery-system ${system} -f ${frequency} -m ${modulation} -s ${baudrate} --polarity ${polarity} --satellite-number 1 -P zap ${program}
+transcodeconfig:
+  command: ffmpeg
+  args: -f mpegts -analyzeduration 1M -probesize 1M -i udp://127.0.0.1:${_portin_}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 7M -minrate 6M -maxrate 7M -bufsize 14M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd
+  portin: 56320
+  exitcommand: q
 channelmaps:
     Demo:
         name: HB Demo Channel Map
@@ -16,3 +24,6 @@ channelmaps:
             4:
                 name: Live
                 source: video/live/out.mpd    
+            5:
+                name: RAI1
+                source: dynamic/test/DVB-S2_8-PSK_11766000000_29900000_vertical/RAI1HD/out.mpd                   

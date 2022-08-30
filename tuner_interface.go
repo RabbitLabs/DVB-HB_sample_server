@@ -4,11 +4,11 @@ import (
 	"github.com/Comcast/gots/packet"
 )
 
-type TunerChannel chan packet.Packet
+type MpegTSChannel chan packet.Packet
 
 type Tuner interface {
 	// get the channel to receive MPEG TS Packets
-	GetChannel() TunerChannel
+	GetChannel() MpegTSChannel
 	// tune to a TS, true if OK
 	Tune( parameters string) bool
 	// stop TS

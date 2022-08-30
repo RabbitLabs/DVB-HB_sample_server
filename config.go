@@ -20,6 +20,7 @@ func (config *DeviceConfig) ReadConfig(configFileName string) error {
 	}
 
 	config.dynamicchannelmaps = make(map[string]DynamicChannelMap)
+	config.dynamiccontent = make(map[string]DynamicContent)
 
 	return nil
 }

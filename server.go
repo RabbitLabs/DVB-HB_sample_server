@@ -55,16 +55,18 @@ func main() {
 	//deviceconfig.WriteConfig("democonfig.yaml")
 	deviceconfig.ReadConfig("democonfig.yaml")
 
-	// serve configuration file
-	
+	transcoderManager := CreateDynamicTranscode(deviceconfig.TunerConfig, deviceconfig.TranscodeConfig)	
 
+	RegisterDynamicContent("test", transcoderManager)
+
+	// serve configuration file
 	svrmux.HandleFunc("/configuration.js", configurationHandler)
 
 	// serve channel map list and channel maps
 	svrmux.HandleFunc(ChannelMapPath, channelmapHandler)
 
 	// serve channel map list and channel maps
-	svrmux.HandleFunc(DynamicContentPath, dynamicHandler)
+	svrmux.HandleFunc(DynamicContentPath, dynamicContentHandler)
 
 	// serve static files
 
@@ -78,15 +80,15 @@ func main() {
 	deviceconfig.RegisterDynamicChannelMap(virtualtuner)
 
 	// transcoder := CreateCommandLineTranscoder("ffmpeg", "-f mpegts -re -i pipe: -map 0:v -map 0:a -c:a aac -c:v h264 -b:v:0 2M -profile:v:0 main -bf 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd")
-	transcoder := CreateCommandLineTranscoder("ffmpeg", "-f mpegts -analyzeduration 1M -probesize 1M -vsync 0 -i udp://127.0.0.1:${port}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 5M -minrate 6M -maxrate 6M -bufsize 12M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd", 9001)
+	// transcoder := CreateCommandLineTranscoder("ffmpeg", "-f mpegts -analyzeduration 1M -probesize 1M -vsync 0 -i udp://127.0.0.1:${port}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 5M -minrate 6M -maxrate 6M -bufsize 12M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd", 9001)
 
-	go func() {
-		tschannel := tm.GetChannel()
+	// go func() {
+	// 	tschannel := tm.GetChannel()
 
-		for pkt := range tschannel {
-			transcoder.ProcessPacket(pkt)
-		}
-	}()
+	// 	for pkt := range tschannel {
+	// 		transcoder.ProcessPacket(pkt)
+	// 	}
+	// }()
 
 	//virtualtuner.Tune("C")
 
@@ -125,6 +127,6 @@ func main() {
 	<-idleConnsClosed
 
 	// eventually stop launched tasks before exits (avoid hanging processes)
-	virtualtuner.Stop()
-	transcoder.Stop()	
+	//virtualtuner.Stop()
+	//transcoder.Stop()	
 }
