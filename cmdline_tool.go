@@ -64,6 +64,7 @@ func (t *CommandLineTool) handleStdReader(reader io.ReadCloser) {
 
 // handle TS packet coming from std out
 func (t *CommandLineTool) handleTSReader() {
+	// i := 0
 	for {
 		readpacket := new(packet.Packet)
 
@@ -79,10 +80,13 @@ func (t *CommandLineTool) handleTSReader() {
 			continue
 		}
 
+
+		//i++
 		// forward to output channel	
 		if (t.outChannel != nil) {
+			//if ((i % 1024) == 0) { log.Print("O") }
 			t.outChannel <- *readpacket
-		}	
+		}
 	}
 }
 
@@ -150,7 +154,10 @@ func (t *CommandLineTool) SetOutputPipe(c MpegTSChannel)  {
 func (t *CommandLineTool) SetInputPipe(c MpegTSChannel) {
 	// launch async processing of packets from channel
 	go func() { 
+		// i := 0
 		for pkt := range c {
+			// i++
+			// if ((i % 1024) == 0) { log.Print("I") }
 			t.ProcessPacket(pkt)
 		}
 
@@ -178,6 +185,8 @@ func (t *CommandLineTool) Start(params map[string]string) error {
 
 	// regexep to parse argument string (to isolate quoted string)
 	r := regexp.MustCompile("'.+'|\".+\"|\\S+")
+
+	log.Printf("running command %s\nwith args = %s", t.config.Command, args)
 
 	// parse command line into array of strings and create the command wrapper
 	t.tool = *exec.Command(t.config.Command, r.FindAllString(args, -1)...) // this will take in account quote around arguments
@@ -236,7 +245,7 @@ func (t *CommandLineTool) Start(params map[string]string) error {
 		target.Port = int(t.config.PortIn)
 		t.currentinconnection, err = net.DialUDP("udp", nil, &target)
 		if err != nil {
-			log.Printf("cannot open port %d for streaming", t.config.PortIn)
+			log.Printf("cannot open port %d for streaming to tool", t.config.PortIn)
 		}
 
 		err = t.currentinconnection.SetWriteBuffer(1024 * 1024)
@@ -261,8 +270,8 @@ func (t *CommandLineTool) Start(params map[string]string) error {
 
 // process one packet of data at the input
 func (t *CommandLineTool) ProcessPacket(p packet.Packet) {
-	if t.currentoutconnection != nil {
-		t.currentoutconnection.Write(p[:])
+	if t.currentinconnection != nil {
+		t.currentinconnection.Write(p[:])
 	} else {
 		if t.pipestdin != nil {
 			t.pipestdin.Write(p[:])
@@ -272,23 +281,37 @@ func (t *CommandLineTool) ProcessPacket(p packet.Packet) {
 
 // stop the tool 
 func (t *CommandLineTool) Stop() {
-	// if an exit command is defined, write it on stdin
-	if t.config.ExitCommand != "" {
-		t.pipestdin.Write([]byte(t.config.ExitCommand))
+	log.Printf("Stopping command %s\n", t.config.Command)
+	
+	// close all pipes
+	if (t.pipestdin != nil) {
+		// if an exit command is defined, write it on stdin
+		if t.config.ExitCommand != "" {
+			t.pipestdin.Write([]byte(t.config.ExitCommand))
+		}
+	}
+
+	// check if a process has been launched
+	if (t.tool.Process != nil) {
+		// if no exit command is defined, just kill the process
+		if t.config.ExitCommand == "" {
+			t.tool.Process.Kill()
+		}
+
+		// wait for tool to stop
+		t.tool.Wait()
 	}
 
 	// close all pipes
-	t.pipestdin.Close()
-	t.pipestdout.Close()
-	t.pipestderr.Close()
-
-	// if no exit command is defined, just kill the process
-	if t.config.ExitCommand == "" {
-		t.tool.Process.Kill()
+	if (t.pipestdin != nil) {
+		t.pipestdin.Close()
 	}
-
-	// wait for tool to stop
-	t.tool.Wait()
+	if (t.pipestdout != nil) {
+		t.pipestdout.Close()
+	}
+	if (t.pipestderr != nil) {
+		t.pipestderr.Close()
+	}	
 
 	// close existing connections
 	if t.currentoutconnection != nil {
@@ -304,4 +327,6 @@ func (t *CommandLineTool) Stop() {
 		close(t.outChannel)
 		t.outChannel = nil
 	}
+
+	log.Printf("Command %s stopped\n", t.config.Command)	
 } 

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"runtime"
+	"os/exec"
 )
 
 // this is where static files for the embedded DVB-I client goes
@@ -49,13 +51,13 @@ func main() {
 	var svr http.Server
 	var svrmux http.ServeMux
 	svr.Handler = &svrmux
- 
+
 	mime.AddExtensionType(".js", "application/javascript")
 
 	//deviceconfig.WriteConfig("democonfig.yaml")
 	deviceconfig.ReadConfig("democonfig.yaml")
 
-	transcoderManager := CreateDynamicTranscode(deviceconfig.TunerConfig, deviceconfig.TranscodeConfig)	
+	transcoderManager := CreateDynamicTranscode(deviceconfig.TunerConfig, deviceconfig.TranscodeConfig)
 
 	RegisterDynamicContent("test", transcoderManager)
 
@@ -98,11 +100,11 @@ func main() {
 
 	// this channel is used to signal when the main server has stopped
 	idleConnsClosed := make(chan struct{})
-	
+
 	// this async function wait for a keypress to stop server properly
 	go func() {
 		var b []byte = make([]byte, 1)
-        os.Stdin.Read(b)
+		os.Stdin.Read(b)
 		fmt.Print("Closing ...\n")
 
 		// We received an interrupt signal, shut down.
@@ -115,18 +117,22 @@ func main() {
 	}()
 
 
+	if runtime.GOOS == "windows" {
+		exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://localhost:8082").Start()
+	}
+
 	fmt.Printf("Starting server at port 8082\n")
-	svr.Addr = ":8082" 
+	svr.Addr = ":8082"
 
 	// run server
 	if err := svr.ListenAndServe(); err != nil {
+
 		log.Fatal(err)
 	}
-	
+
 	// wait to server to close
 	<-idleConnsClosed
 
 	// eventually stop launched tasks before exits (avoid hanging processes)
-	//virtualtuner.Stop()
-	//transcoder.Stop()	
+	transcoderManager.StopAll()
 }

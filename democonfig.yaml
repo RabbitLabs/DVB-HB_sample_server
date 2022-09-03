@@ -1,12 +1,15 @@
 name: DVB HB
 tunerconfig:
   command: tsp
-  args: -I dvb -a ${tunerindex} --delivery-system ${system} -f ${frequency} -m ${modulation} -s ${baudrate} --polarity ${polarity} --satellite-number 1 -P zap ${program}
+  args: -I dvb -a ${tunerindex} ${source} -P zap ${program}
 transcodeconfig:
   command: ffmpeg
-  args: -f mpegts -analyzeduration 1M -probesize 1M -i udp://127.0.0.1:${_portin_}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 7M -minrate 6M -maxrate 7M -bufsize 14M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd
+  args: -f mpegts -analyzeduration 1M -probesize 1M -i udp://127.0.0.1:${_portin_}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 7M -minrate 6M -maxrate 7M -bufsize 14M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash ${tunerindex}/out.mpd
   portin: 56320
   exitcommand: q
+feeds:
+    RAI: --delivery-system DVB-S2 -f 11766000000 -m 8-PSK -s 29900000 --polarity vertical --satellite-number 1
+    KB3: --delivery-system DVB-S2 -f 11554000000 -m 8-PSK -s 29950000 --polarity vertical 
 channelmaps:
     Demo:
         name: HB Demo Channel Map
@@ -26,4 +29,7 @@ channelmaps:
                 source: video/live/out.mpd    
             5:
                 name: RAI1
-                source: dynamic/test/DVB-S2_8-PSK_11766000000_29900000_vertical/RAI1HD/out.mpd                   
+                source: dynamic/test/RAI/RAI1HD/out.mpd         
+            6:
+                name: FRANSATINFO
+                source: dynamic/test/KB3/FRANSATINFO/out.mpd         

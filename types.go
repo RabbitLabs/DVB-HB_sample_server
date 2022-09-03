@@ -2,16 +2,17 @@ package main
 
 import (
 	"net/http"
+
 	"github.com/Comcast/gots/packet"
 )
 
 // types for channel map
 type Channel struct {
-	Name   string `yaml:"name"`
-	Dynamic bool `yaml:"dynamic"`
-	Source string `yaml:"source"`
-	Tune string `yaml:"tune"`
-	Demux string `yaml:"demux"`
+	Name    string `yaml:"name"`
+	Dynamic bool   `yaml:"dynamic"`
+	Source  string `yaml:"source"`
+	Tune    string `yaml:"tune"`
+	Demux   string `yaml:"demux"`
 }
 
 type ChannelMap struct {
@@ -27,19 +28,20 @@ type DynamicChannelMap interface {
 }
 
 type DynamicContent interface {
-	ServeDynamicContent(w http.ResponseWriter, r *http.Request, path string) 
+	ServeDynamicContent(w http.ResponseWriter, r *http.Request, path string)
 }
 
 type DeviceConfig struct {
-	Name        string                `yaml:"name"`
-	ChannelMaps map[string]ChannelMap `yaml:"channelmaps"`
-	TunerConfig CommandLineToolConfig `yaml:"tunerconfig"`
-	TranscodeConfig CommandLineToolConfig `yaml:"transcodeconfig"`
+	Name               string                `yaml:"name"`
+	ChannelMaps        map[string]ChannelMap `yaml:"channelmaps"`
+	TunerConfig        CommandLineToolConfig `yaml:"tunerconfig"`
+	Feeds              map[string]string     `yaml:"feeds"`
+	TranscodeConfig    CommandLineToolConfig `yaml:"transcodeconfig"`
 	dynamicchannelmaps map[string]DynamicChannelMap
-	dynamiccontent map[string]DynamicContent
+	dynamiccontent     map[string]DynamicContent
 }
 
-// transcoding 
+// transcoding
 type Transcoder interface {
 	Start(outputdir string)
 	ProcessPacket(packet.Packet)
