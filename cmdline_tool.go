@@ -24,9 +24,17 @@ type CommandLineToolConfig struct {
 	// send data to tool using UDP socket instead of stdin (leave to 0 to use stdin)
 	PortIn uint16 `yaml:"portin"`
 	// get data from tool using UDP socket instead of stdout (leave to 0 to use stdout)
-	PortOut uint16
+	PortOut uint16 `yaml:"portout"`
+	// port where to send control command to
+	PortCommand uint16 `yaml:"portcommand"`
+	// value to add to port for this specific instance (make it easier to have several instance running)
+	PortOffset uint16 `yaml:"portoffset"`
 	// how to exit tool send this string to stdin to exit, if empty exits by killing process
 	ExitCommand string `yaml:"exitcommand"`
+	// don't print stdout
+	MuteStdOut bool  `yaml:"mutestdout"`
+	// push some dummy data on exit
+	DummyDataOnExit bool `yaml:"dummydataonexit"`
 }
 
 // object to execute an external command tool while piping in and out data with either socket or standard IO
@@ -43,6 +51,8 @@ type CommandLineTool struct {
 	currentinconnection *net.UDPConn
 	// current connection to receive UDP packets if required
 	currentoutconnection *net.UDPConn
+	// current connection to send UDP command if required
+	currentcommandconnection *net.UDPConn
 
 	// the golang channel to output MPEG TS Packets
 	outChannel MpegTSChannel
@@ -58,7 +68,9 @@ func (t *CommandLineTool) handleStdReader(reader io.ReadCloser) {
 		if err != nil {
 			break
 		}
-		fmt.Print(str)
+		if (!t.config.MuteStdOut) {
+			fmt.Print(str)
+		}
 	}
 }
 
@@ -173,9 +185,11 @@ func (t *CommandLineTool) Start(params map[string]string) error {
 	args := os.Expand(t.config.Args, func(s string) string {
 		switch s {
 		case "_portin_":
-			return fmt.Sprintf("%d", t.config.PortIn)
+			return fmt.Sprintf("%d", t.config.PortIn + t.config.PortOffset)
 		case "_portout_":
-			return fmt.Sprintf("%d", t.config.PortOut)
+			return fmt.Sprintf("%d", t.config.PortOut + t.config.PortOffset)
+		case "_portcommand_":
+			return fmt.Sprintf("%d", t.config.PortCommand + t.config.PortOffset)
 		case "_workdir_":
 			return t.config.WorkDir
 		default:
@@ -206,8 +220,9 @@ func (t *CommandLineTool) Start(params map[string]string) error {
 	}
 
 	if t.config.PortOut != 0 {
+		log.Printf("Read output from UDP port %d", t.config.PortOut + t.config.PortOffset)
 		var err error
-		listenport := fmt.Sprintf(":%d", t.config.PortOut)
+		listenport := fmt.Sprintf(":%d", t.config.PortOut + t.config.PortOffset )
 		//vt.currentconnection, err = net.DialUDP("udp", listenport)
 		addr, _ := net.ResolveUDPAddr("udp", listenport)
 		t.currentoutconnection, err = net.ListenUDP("udp", addr)
@@ -242,14 +257,26 @@ func (t *CommandLineTool) Start(params map[string]string) error {
 		var target net.UDPAddr
 		var err error
 
-		target.Port = int(t.config.PortIn)
+		target.Port = int(t.config.PortIn + t.config.PortOffset)
 		t.currentinconnection, err = net.DialUDP("udp", nil, &target)
 		if err != nil {
-			log.Printf("cannot open port %d for streaming to tool", t.config.PortIn)
+			log.Printf("cannot open port %d for streaming to tool", t.config.PortIn + t.config.PortOffset)
 		}
 
 		err = t.currentinconnection.SetWriteBuffer(1024 * 1024)
 	}
+
+	// port to send command to the tool
+	if t.config.PortCommand != 0 {
+		var target net.UDPAddr
+		var err error
+
+		target.Port = int(t.config.PortCommand + t.config.PortOffset)
+		t.currentcommandconnection, err = net.DialUDP("udp", nil, &target)
+		if err != nil {
+			log.Printf("cannot open port %d for command to tool", t.config.PortCommand + t.config.PortOffset)
+		}
+	}	
 
 	// set directory if present
 	if t.config.WorkDir != "" {
@@ -287,7 +314,23 @@ func (t *CommandLineTool) Stop() {
 	if (t.pipestdin != nil) {
 		// if an exit command is defined, write it on stdin
 		if t.config.ExitCommand != "" {
-			t.pipestdin.Write([]byte(t.config.ExitCommand))
+			if (t.config.PortCommand != 0) {
+				log.Printf("Send exit command %s to port %d\n", t.config.Command, t.config.PortCommand + t.config.PortOffset)
+				t.currentcommandconnection.Write([]byte(t.config.ExitCommand))
+			} else {
+				log.Printf("Send exit command %s to stdin\n", t.config.Command)
+				t.pipestdin.Write([]byte(t.config.ExitCommand))
+			}
+
+			// send a few dummy packets on the TS interface to force processing of exit commmand (required by some tools)
+			if (t.config.DummyDataOnExit) {
+				log.Printf("Feed empty packets to stdin\n")
+				dummypacket := [188]byte{ 0x47, 0x1F, 0xFF, 0x00}
+
+				for i:=0 ; i<128 ; i++ {
+					t.ProcessPacket(dummypacket)
+				}
+			}
 		}
 	}
 
@@ -295,9 +338,12 @@ func (t *CommandLineTool) Stop() {
 	if (t.tool.Process != nil) {
 		// if no exit command is defined, just kill the process
 		if t.config.ExitCommand == "" {
+			log.Printf("Force fully kill command\n")
 			t.tool.Process.Kill()
+			//t.tool.Process.Signal(os.Interrupt)
 		}
 
+		log.Printf("Wait for command exit\n")
 		// wait for tool to stop
 		t.tool.Wait()
 	}
@@ -320,6 +366,10 @@ func (t *CommandLineTool) Stop() {
 
 	if t.currentinconnection != nil {
 		t.currentinconnection.Close()
+	}
+	
+	if t.currentcommandconnection != nil {
+		t.currentcommandconnection.Close()
 	}
 
 	// close output pipe

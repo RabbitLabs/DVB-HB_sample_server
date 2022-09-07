@@ -2,7 +2,6 @@ package main
 
 import (
 	"io/ioutil"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,6 +20,10 @@ func (config *DeviceConfig) ReadConfig(configFileName string) error {
 
 	config.dynamicchannelmaps = make(map[string]DynamicChannelMap)
 	config.dynamiccontent = make(map[string]DynamicContent)
+	
+	if (config.TunerList == nil) {
+		config.TunerList = []int{ }
+	}
 
 	return nil
 }

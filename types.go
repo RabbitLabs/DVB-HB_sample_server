@@ -37,6 +37,10 @@ type DeviceConfig struct {
 	TunerConfig        CommandLineToolConfig `yaml:"tunerconfig"`
 	Feeds              map[string]string     `yaml:"feeds"`
 	TranscodeConfig    CommandLineToolConfig `yaml:"transcodeconfig"`
+	MaxTuner           int                   `yaml:"maxtuner"`
+	TunerList          []int                 `yaml:"tunerlist"`
+	OpenPage           bool                  `yaml:"openpage"`
+	ServerPort         int                   `yaml:"serverport"`
 	dynamicchannelmaps map[string]DynamicChannelMap
 	dynamiccontent     map[string]DynamicContent
 }

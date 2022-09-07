@@ -1,14 +1,23 @@
 name: DVB HB
 tunerconfig:
   command: tsp
-  args: -I dvb -a ${tunerindex} ${source} -P zap ${program}
+  args: -I dvb -a ${tunerindex} ${source} -P cutoff ${_portcommand_} -P zap ${program} -O ip 127.0.0.1:${_portout_}
+  portcommand: 45210
+  portout: 48210
+  exitcommand: exit
 transcodeconfig:
   command: ffmpeg
-  args: -f mpegts -analyzeduration 1M -probesize 1M -i udp://127.0.0.1:${_portin_}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 7M -minrate 6M -maxrate 7M -bufsize 14M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash ${tunerindex}/out.mpd
+  args: -hide_banner -loglevel error -f mpegts -analyzeduration 1M -probesize 1M -i udp://127.0.0.1:${_portin_}?fifo_size=1000000&overrun_nonfatal=1&timeout=5000000 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 7M -minrate 6M -maxrate 7M -bufsize 14M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -use_template 1 -window_size 20 -seg_duration 2 -f dash  ${tunerindex}/out.mpd
   portin: 56320
   exitcommand: q
+# mutestdout: true
+  dummydataonexit: true
+# maxtuner: 2  
+openpage: true
+tunerlist: [ 0 ]
 feeds:
-    RAI: --delivery-system DVB-S2 -f 11766000000 -m 8-PSK -s 29900000 --polarity vertical --satellite-number 1
+    TP5200: --delivery-system DVB-S2 -f 11766000000 -m 8-PSK -s 29900000 --polarity vertical
+    TP12500: --delivery-system DVB-S2 -f 11013000000 -m 8-PSK -s 29900000 --polarity horizontal    
     KB3: --delivery-system DVB-S2 -f 11554000000 -m 8-PSK -s 29950000 --polarity vertical 
 channelmaps:
     Demo:
@@ -16,20 +25,11 @@ channelmaps:
         provider: DVB
         channels:
             1:
-                name: Big Buck Bunny
-                source: video/bunny/dash.mpd
+                name: RAI 1 HD
+                source: dynamic/transcode/TP5200/RAI1HD/out.mpd         
             2:
-                name: Sintel
-                source: video/sintel/dash.mpd
+                name: RAI 2 HD
+                source: dynamic/transcode/TP5200/RAI2HD/out.mpd     
             3:
-                name: Cosmic Laundromat
-                source: video/cosmic/dash.mpd
-            4:
-                name: Live
-                source: video/live/out.mpd    
-            5:
-                name: RAI1
-                source: dynamic/test/RAI/RAI1HD/out.mpd         
-            6:
-                name: FRANSATINFO
-                source: dynamic/test/KB3/FRANSATINFO/out.mpd         
+                name: RAI NEWS 24 HD
+                source: dynamic/transcode/TP12500/RAINEWS24HD/out.mpd   

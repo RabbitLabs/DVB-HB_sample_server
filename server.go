@@ -9,9 +9,9 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"strings"
-	"runtime"
 	"os/exec"
+	"runtime"
+	"strings"
 )
 
 // this is where static files for the embedded DVB-I client goes
@@ -57,9 +57,9 @@ func main() {
 	//deviceconfig.WriteConfig("democonfig.yaml")
 	deviceconfig.ReadConfig("democonfig.yaml")
 
-	transcoderManager := CreateDynamicTranscode(deviceconfig.TunerConfig, deviceconfig.TranscodeConfig)
+	transcoderManager := CreateDynamicTranscode(deviceconfig.TunerConfig, deviceconfig.TranscodeConfig, deviceconfig.MaxTuner, deviceconfig.TunerList)
 
-	RegisterDynamicContent("test", transcoderManager)
+	RegisterDynamicContent("transcode", transcoderManager)
 
 	// serve configuration file
 	svrmux.HandleFunc("/configuration.js", configurationHandler)
@@ -71,7 +71,6 @@ func main() {
 	svrmux.HandleFunc(DynamicContentPath, dynamicContentHandler)
 
 	// serve static files
-
 	svrmux.Handle("/video/", http.StripPrefix("/video/", http.FileServer(http.Dir("./video"))))
 	svrmux.HandleFunc("/", staticHandler)
 
@@ -80,21 +79,6 @@ func main() {
 	tm.AttachTuner(virtualtuner)
 
 	deviceconfig.RegisterDynamicChannelMap(virtualtuner)
-
-	// transcoder := CreateCommandLineTranscoder("ffmpeg", "-f mpegts -re -i pipe: -map 0:v -map 0:a -c:a aac -c:v h264 -b:v:0 2M -profile:v:0 main -bf 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd")
-	// transcoder := CreateCommandLineTranscoder("ffmpeg", "-f mpegts -analyzeduration 1M -probesize 1M -vsync 0 -i udp://127.0.0.1:${port}?fifo_size=1000000&overrun_nonfatal=1 -map 0:v -map 0:a -c:a aac -c:v h264_nvenc -rc-lookahead 25 -b:v:0 5M -minrate 6M -maxrate 6M -bufsize 12M -pix_fmt yuv420p -profile:v:0 main -bf 1 -remove_at_exit 1 -keyint_min 25 -g 25 -sc_threshold 0 -b_strategy 0 -f dash out.mpd", 9001)
-
-	// go func() {
-	// 	tschannel := tm.GetChannel()
-
-	// 	for pkt := range tschannel {
-	// 		transcoder.ProcessPacket(pkt)
-	// 	}
-	// }()
-
-	//virtualtuner.Tune("C")
-
-	//transcoder.Start("video/live/")
 
 	RegisterDynamicChannelMap(virtualtuner)
 
@@ -116,13 +100,19 @@ func main() {
 		close(idleConnsClosed)
 	}()
 
-
-	if runtime.GOOS == "windows" {
-		exec.Command("rundll32", "url.dll,FileProtocolHandler", "http://localhost:8082").Start()
+	// configure default port to 80 if none is specified
+	if deviceconfig.ServerPort == 0 {
+		deviceconfig.ServerPort = 80
 	}
 
-	fmt.Printf("Starting server at port 8082\n")
-	svr.Addr = ":8082"
+	// under windows launch browser if requested to 
+	if runtime.GOOS == "windows" && deviceconfig.OpenPage {
+		exec.Command("rundll32", "url.dll,FileProtocolHandler", fmt.Sprintf("http://localhost:%d", deviceconfig.ServerPort)).Start()
+	}
+
+
+	fmt.Printf("Starting server at port %d\n", deviceconfig.ServerPort)
+	svr.Addr = fmt.Sprintf(":%d", deviceconfig.ServerPort)
 
 	// run server
 	if err := svr.ListenAndServe(); err != nil {

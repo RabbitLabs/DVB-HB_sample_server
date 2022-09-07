@@ -108,8 +108,9 @@ func (config DeviceConfig) channelmapListWrite(w http.ResponseWriter, host strin
 	for name, dynamicchannelmap := range config.dynamicchannelmaps {
 		// get quick description of channel map
 		channelmap := dynamicchannelmap.GetChannelInfo()
-
-		channelmap.WriteConfig(w, host, name)
+		if (channelmap.Description != "" ) {
+			channelmap.WriteConfig(w, host, name)
+		}
 	}
 
 	w.Write([]byte("</sld:ServiceListEntryPoints>\n"))
