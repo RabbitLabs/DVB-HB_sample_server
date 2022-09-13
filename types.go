@@ -36,13 +36,16 @@ type DeviceConfig struct {
 	ChannelMaps        map[string]ChannelMap `yaml:"channelmaps"`
 	TunerConfig        CommandLineToolConfig `yaml:"tunerconfig"`
 	Feeds              map[string]string     `yaml:"feeds"`
+	Aliases            map[string]string     `yaml:"aliases"`
 	TranscodeConfig    CommandLineToolConfig `yaml:"transcodeconfig"`
 	MaxTuner           int                   `yaml:"maxtuner"`
 	TunerList          []int                 `yaml:"tunerlist"`
 	OpenPage           bool                  `yaml:"openpage"`
 	ServerPort         int                   `yaml:"serverport"`
+	HelperTools        []CommandLineToolConfig `yaml:"helpertools"`
 	dynamicchannelmaps map[string]DynamicChannelMap
 	dynamiccontent     map[string]DynamicContent
+	helpertoolsruntime []*CommandLineTool
 }
 
 // transcoding

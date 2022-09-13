@@ -19,6 +19,8 @@ feeds:
     TP5200: --delivery-system DVB-S2 -f 11766000000 -m 8-PSK -s 29900000 --polarity vertical
     TP12500: --delivery-system DVB-S2 -f 11013000000 -m 8-PSK -s 29900000 --polarity horizontal    
     KB3: --delivery-system DVB-S2 -f 11554000000 -m 8-PSK -s 29950000 --polarity vertical 
+aliases:
+   TPS5201/RAI2HD: TP5200/RAI2HD
 channelmaps:
     Demo:
         name: HB Demo Channel Map

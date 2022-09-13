@@ -14,65 +14,66 @@ import (
 const tickTime time.Duration = time.Second
 const tickTimeout int = 8
 const startTimeout int = 15
+
 // time out at startup of transcode
 const fileTick time.Duration = 10 * time.Millisecond
 const fileTimeout int = 1000
 
 // a running instance of transcode
 type DynamicTranscodeInstance struct {
-	Args map[string]string
-	InstanceIndex  int
-	Tuner *CommandLineTool
-	Transcoder *CommandLineTool
-	TimeOut int
+	Args          map[string]string
+	InstanceIndex int
+	Tuner         *CommandLineTool
+	Transcoder    *CommandLineTool
+	TimeOut       int
 }
 
 // the transcoder manager which create and destroy transcode instances according to client requests
-// transcode manager also serve client request 
+// transcode manager also serve client request
 type DynamicTranscodeManager struct {
 	// configuration for tuner and transcoder
-	configTuner CommandLineToolConfig
+	configTuner      CommandLineToolConfig
 	configTranscoder CommandLineToolConfig
-	maxTuner int
-	tunerList []int
+	maxTuner         int
+	tunerList        []int
 	// list running trancoder instances
 	activeInstances map[string]*DynamicTranscodeInstance
 	// a ticker to check if transcode instance needs to be flushed
 	ticker *time.Ticker
 }
 
-// stop a running instance, stopping the tuner closes data channel and stop also transcoder 
+// stop a running instance, stopping the tuner closes data channel and stop also transcoder
 func (d *DynamicTranscodeInstance) Stop() {
 	// if (d.Transcoder != nil) {
 	// 	d.Transcoder.Stop()
-	// }	
-	if (d.Tuner != nil) {
+	// }
+	if d.Tuner != nil {
 		d.Tuner.Stop()
 	}
 }
 
 func (d *DynamicTranscodeInstance) RemoveAllContent() error {
 	path := strconv.Itoa(d.InstanceIndex)
-    directory, err := os.Open(path)
-    if err != nil {
-        return err
-    }
-    defer directory.Close()
-    names, err := directory.Readdirnames(-1)
-    if err != nil {
-        return err
-    }
-    for _, name := range names {
-        err = os.RemoveAll(filepath.Join(path, name))
-        if err != nil {
-            return err
-        }
-    }
-    return nil
+	directory, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	names, err := directory.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		err = os.RemoveAll(filepath.Join(path, name))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // create a transcode manager
-func CreateDynamicTranscode(configTuner CommandLineToolConfig, configTranscoder CommandLineToolConfig, maxTuner int, tunerList []int)  *DynamicTranscodeManager {
+func CreateDynamicTranscode(configTuner CommandLineToolConfig, configTranscoder CommandLineToolConfig, maxTuner int, tunerList []int) *DynamicTranscodeManager {
 	t := new(DynamicTranscodeManager)
 
 	t.configTuner = configTuner
@@ -89,13 +90,13 @@ func CreateDynamicTranscode(configTuner CommandLineToolConfig, configTranscoder 
 }
 
 // a function running in the backgound to cleanup inactive instances
-func (t *DynamicTranscodeManager)  RunTimeOut() {
+func (t *DynamicTranscodeManager) RunTimeOut() {
 
 	for _ = range t.ticker.C {
 		for name, instance := range t.activeInstances {
 			instance.TimeOut--
 			log.Printf("Tick Instance %s time out is %d\n", name, instance.TimeOut)
-			if (instance.TimeOut <= 0) {
+			if instance.TimeOut <= 0 {
 				log.Printf("Stopping Instance %s after timeout\n", name)
 				instance.Stop()
 				delete(t.activeInstances, name)
@@ -106,17 +107,17 @@ func (t *DynamicTranscodeManager)  RunTimeOut() {
 }
 
 // stop all running instances (called before exists to avoid hanging processes)
-func (t *DynamicTranscodeManager)  StopAll() {
+func (t *DynamicTranscodeManager) StopAll() {
 	for name, instance := range t.activeInstances {
 		instance.Stop()
 		delete(t.activeInstances, name)
-	}	
+	}
 }
 
 // check if a specific tuner index is in use
 func (t *DynamicTranscodeManager) IsTunerUsed(n int) bool {
 	// scan all instances
-	for _ ,instance := range t.activeInstances {
+	for _, instance := range t.activeInstances {
 		// if one is matching return is use
 		if instance.InstanceIndex == n {
 			return true
@@ -128,17 +129,17 @@ func (t *DynamicTranscodeManager) IsTunerUsed(n int) bool {
 }
 
 func (t *DynamicTranscodeManager) AllocateTuner() int {
-	if (len(t.tunerList) > 0) {
+	if len(t.tunerList) > 0 {
 		for i := range t.tunerList {
-			if (!t.IsTunerUsed(t.tunerList[i])) {
-				return t.tunerList[i];
+			if !t.IsTunerUsed(t.tunerList[i]) {
+				return t.tunerList[i]
 			}
-		}	
+		}
 	}
 
-	for i := 0; i< t.maxTuner; i++ {
-		if (!t.IsTunerUsed(i)) {
-			return i;
+	for i := 0; i < t.maxTuner; i++ {
+		if !t.IsTunerUsed(i) {
+			return i
 		}
 	}
 	return -1
@@ -148,42 +149,52 @@ func (t *DynamicTranscodeManager) AllocateTuner() int {
 func (t *DynamicTranscodeManager) ServeDynamicContent(w http.ResponseWriter, r *http.Request, path string) {
 	// split full path
 	splitPath := strings.SplitN(path, "/", 3)
+
 	// build instance path
-	instancePath := strings.Join( []string{splitPath[0], splitPath[1] }, "/" )
-	
+	instancePath := strings.Join([]string{splitPath[0], splitPath[1]}, "/")
+
+	aliasname, aliasFound := deviceconfig.Aliases[instancePath]
+
+	if aliasFound {
+		log.Printf("Replacing reference from %s to %s\n", instancePath, aliasname)
+		instancePath = aliasname
+		aliasSplitPath := strings.SplitN(aliasname, "/", 2)
+		splitPath[0] = aliasSplitPath[0]
+		splitPath[1] = aliasSplitPath[1]
+	}
+
 	// try to lookup instance
 	activeInstance, found := t.activeInstances[instancePath]
 
-	if (!found) {
+	if !found {
 		log.Printf("Instance for %s not found, creating new one\n", instancePath)
 		source, sourcefound := deviceconfig.Feeds[splitPath[0]]
 
-		if (!sourcefound) {
+		if !sourcefound {
 			http.Error(w, "404 not found. Unknown channel", http.StatusNotFound)
 			return
 		}
 
 		Index := t.AllocateTuner()
 		sIndex := strconv.Itoa(Index)
-		
-		if (Index < 0) {
+
+		if Index < 0 {
 			log.Printf("Cannot allocate tuner\n")
 			http.Error(w, "429 too many request", http.StatusTooManyRequests)
-			return					
+			return
 		}
 
 		// create new instance
 		activeInstance = new(DynamicTranscodeInstance)
 
-
 		// configure instance
 		activeInstance.InstanceIndex = Index
 
-		// cleanup existing content in directory 
+		// cleanup existing content in directory
 		activeInstance.RemoveAllContent()
 
 		// check if work directory exists
-		_ , error := os.Stat(sIndex)
+		_, error := os.Stat(sIndex)
 
 		// create transcode directory if it does not exists
 		if os.IsNotExist(error) {
@@ -195,12 +206,12 @@ func (t *DynamicTranscodeManager) ServeDynamicContent(w http.ResponseWriter, r *
 
 		// create parameters for tools
 		activeInstance.Args = make(map[string]string)
-		
+
 		activeInstance.Args["source"] = source
 		activeInstance.Args["program"] = splitPath[1]
 		activeInstance.Args["tunerindex"] = sIndex
-	
-		// create tool for receiving 
+
+		// create tool for receiving
 		localTunerConfig := t.configTuner
 		localTunerConfig.PortOffset = (uint16)(activeInstance.InstanceIndex)
 		activeInstance.Tuner = CreateCommandLineTool(localTunerConfig)
@@ -210,9 +221,9 @@ func (t *DynamicTranscodeManager) ServeDynamicContent(w http.ResponseWriter, r *
 		localTranscoderConfig.PortOffset = (uint16)(activeInstance.InstanceIndex)
 		activeInstance.Transcoder = CreateCommandLineTool(localTranscoderConfig)
 
-		// set start timeout before adding to list, starting requires longer timeout 
+		// set start timeout before adding to list, starting requires longer timeout
 		activeInstance.TimeOut = startTimeout
-		// add to list of active instances	
+		// add to list of active instances
 		t.activeInstances[instancePath] = activeInstance
 
 		// link pipes
@@ -223,7 +234,7 @@ func (t *DynamicTranscodeManager) ServeDynamicContent(w http.ResponseWriter, r *
 	}
 
 	// path to file to serve
-	filePath := strings.Join( []string { strconv.Itoa(activeInstance.InstanceIndex), splitPath[2] }, "/")
+	filePath := strings.Join([]string{strconv.Itoa(activeInstance.InstanceIndex), splitPath[2]}, "/")
 
 	//log.Printf("accessing file %s\n", filePath)
 
@@ -231,17 +242,17 @@ func (t *DynamicTranscodeManager) ServeDynamicContent(w http.ResponseWriter, r *
 	fileNotExists := true
 	timeOut := fileTimeout
 
-	for (fileNotExists) {
-		_ , error := os.Stat(filePath)
+	for fileNotExists {
+		_, error := os.Stat(filePath)
 
 		fileNotExists = os.IsNotExist(error)
 
 		// check if file exists
-		if (fileNotExists) {
+		if fileNotExists {
 			// run time out
 			timeOut--
 
-			if (timeOut <=0) {
+			if timeOut <= 0 {
 				log.Printf("Timed out, File %s does not exists\n", filePath)
 				http.Error(w, "404 not found.", http.StatusNotFound)
 				return
@@ -252,7 +263,7 @@ func (t *DynamicTranscodeManager) ServeDynamicContent(w http.ResponseWriter, r *
 	}
 
 	// reset timeout on this instance
-	activeInstance.TimeOut = tickTimeout	
+	activeInstance.TimeOut = tickTimeout
 
 	//log.Printf("Serving file %s\n", filePath)
 

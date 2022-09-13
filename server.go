@@ -82,6 +82,15 @@ func main() {
 
 	RegisterDynamicChannelMap(virtualtuner)
 
+	deviceconfig.helpertoolsruntime = make([]*CommandLineTool, len(deviceconfig.HelperTools))
+	Args := make(map[string]string)
+
+	for i := range deviceconfig.HelperTools {
+		deviceconfig.helpertoolsruntime[i] = CreateCommandLineTool(deviceconfig.HelperTools[i])
+		Args["index"] = fmt.Sprintf("%d", i)
+		deviceconfig.helpertoolsruntime[i].Start(Args)
+	}
+
 	// this channel is used to signal when the main server has stopped
 	idleConnsClosed := make(chan struct{})
 
@@ -124,5 +133,15 @@ func main() {
 	<-idleConnsClosed
 
 	// eventually stop launched tasks before exits (avoid hanging processes)
+	log.Println("stopping running transcoders")
 	transcoderManager.StopAll()
+
+	log.Println("stopping running tools")
+
+	for i := range deviceconfig.helpertoolsruntime {
+		deviceconfig.helpertoolsruntime[i].Stop()
+	} 
+
+	log.Println("Finished, exit")
+
 }
