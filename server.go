@@ -119,9 +119,10 @@ func main() {
 		exec.Command("rundll32", "url.dll,FileProtocolHandler", fmt.Sprintf("http://localhost:%d", deviceconfig.ServerPort)).Start()
 	}
 
-
 	fmt.Printf("Starting server at port %d\n", deviceconfig.ServerPort)
 	svr.Addr = fmt.Sprintf(":%d", deviceconfig.ServerPort)
+
+	UPNPStart(&svrmux, deviceconfig.ServerPort, "server.xml")
 
 	// run server
 	if err := svr.ListenAndServe(); err != nil {
