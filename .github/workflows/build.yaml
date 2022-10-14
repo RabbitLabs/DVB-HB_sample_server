@@ -19,3 +19,9 @@ jobs:
 
       - name: Build
         run: go build -v ./...
+      
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: 'server linux'
+          path: server        
