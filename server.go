@@ -141,6 +141,7 @@ func main() {
 	ServerUPnPDevice.server_port = deviceconfig.ServerPort
 	ServerUPnPDevice.server_desc_path = "/server.xml"
 	ServerUPnPDevice.server_name = "DVB-HB Sample Server 1.0"
+	ServerUPnPDevice.presentation_page = "/index.html"
 	ServerUPnPDevice.Start(&svrmux)
 
 	// run server

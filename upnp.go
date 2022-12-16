@@ -14,19 +14,21 @@ import (
 )
 
 type UPnPDevice struct {
-	rootadvertiser *ssdp.Advertiser
-	deviceadvertiser *ssdp.Advertiser
+	rootadvertiser    *ssdp.Advertiser
+	deviceadvertiser  *ssdp.Advertiser
 	serviceadvertiser *ssdp.Advertiser
 
-	adticker *time.Ticker
-	device_uuid string
+	adticker      *time.Ticker
+	device_uuid   string
 	local_address string
 
 	server_name string
-	icon_path string
+	icon_path   string
 
-	server_desc_path string
-	server_port int
+	server_desc_path  string
+	server_port       int
+	presentation_page string
+	presentation_url  string
 }
 
 const defaultuuid = "uuid:11e77140-70dc-4d30-80dd-c6ddae09bd41"
@@ -41,7 +43,7 @@ func (d *UPnPDevice) getlocal_address() {
 
 	addr := conn.LocalAddr().String()
 
-	d.local_address= strings.Split(addr, ":")[0]
+	d.local_address = strings.Split(addr, ":")[0]
 }
 
 // generate a unique id from MAC address
@@ -50,7 +52,7 @@ func (d *UPnPDevice) generate_uuid() {
 	if err != nil {
 		// use use static uuid
 		d.device_uuid = defaultuuid
-		return 
+		return
 	}
 
 	// scan interaces
@@ -115,9 +117,9 @@ func (d *UPnPDevice) DeviceDescHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(d.device_uuid))
 	w.Write([]byte("</UDN>\n"))
 	w.Write([]byte("<UPC>Universal Product Code</UPC>\n"))
-	w.Write([]byte("<presentationURL>http://"))
-	w.Write([]byte(d.local_address))
-	w.Write([]byte("/index.html</presentationURL>\n"))
+	w.Write([]byte("<presentationURL>"))
+	w.Write([]byte(d.presentation_url))
+	w.Write([]byte("</presentationURL>\n"))
 
 	w.Write([]byte("<iconList>\n"))
 	w.Write([]byte("<icon>\n"))
@@ -142,21 +144,28 @@ func (d *UPnPDevice) DeviceDescHandler(w http.ResponseWriter, r *http.Request) {
 
 func (d *UPnPDevice) Start(svrmux *http.ServeMux) {
 	var err error
+	var locationroot string
 	// compute internal values
 	d.getlocal_address()
 	d.generate_uuid()
 
-	locationroot := strings.Join([]string{"http://", d.local_address, ":", fmt.Sprintf("%d", d.server_port)}, "")
+	if d.server_port == 80 {
+		locationroot = strings.Join([]string{"http://", d.local_address}, "")
+	} else {
+		locationroot = strings.Join([]string{"http://", d.local_address, ":", fmt.Sprintf("%d", d.server_port)}, "")
+	}
+
+	d.presentation_url = locationroot + d.presentation_page
 
 	log.Printf("UPNP base location %s\n", locationroot)
 
-	server_desc_url := locationroot + d.server_desc_path;
+	server_desc_url := locationroot + d.server_desc_path
 
 	// ROOT ADVERTISER
 	d.rootadvertiser, err = ssdp.Advertise(
 		"upnp:rootdevice",                 // send as "ST"
 		d.device_uuid+"::upnp:rootdevice", // send as "USN"
-		server_desc_url,                  // send as "LOCATION"
+		server_desc_url,                   // send as "LOCATION"
 		d.server_name,                     // send as "SERVER"
 		1800)                              // send as "maxAge" in "CACHE-CONTROL"
 
@@ -166,11 +175,11 @@ func (d *UPnPDevice) Start(svrmux *http.ServeMux) {
 
 	// DEVICE ADVERTISER
 	d.deviceadvertiser, err = ssdp.Advertise(
-		d.device_uuid,            // send as "ST"
-		d.device_uuid,            // send as "USN"
-		server_desc_url,         // send as "LOCATION"
-		d.server_name,            // send as "SERVER"
-		1800)                     // send as "maxAge" in "CACHE-CONTROL"
+		d.device_uuid,   // send as "ST"
+		d.device_uuid,   // send as "USN"
+		server_desc_url, // send as "LOCATION"
+		d.server_name,   // send as "SERVER"
+		1800)            // send as "maxAge" in "CACHE-CONTROL"
 
 	if err != nil {
 		panic(err)
@@ -180,14 +189,13 @@ func (d *UPnPDevice) Start(svrmux *http.ServeMux) {
 	d.serviceadvertiser, err = ssdp.Advertise(
 		"urn:ses-com:device:SatIPServer:1",                 // send as "ST"
 		d.device_uuid+"::urn:ses-com:device:SatIPServer:1", // send as "USN"
-		server_desc_url,                  // send as "LOCATION"
-		d.server_name,                     // send as "SERVER"
-		1800)                              // send as "maxAge" in "CACHE-CONTROL"
+		server_desc_url, // send as "LOCATION"
+		d.server_name,   // send as "SERVER"
+		1800)            // send as "maxAge" in "CACHE-CONTROL"
 
 	if err != nil {
 		panic(err)
 	}
-
 
 	// add handler for device description and icon
 	svrmux.HandleFunc(d.server_desc_path, d.DeviceDescHandler)
@@ -216,5 +224,5 @@ func (d *UPnPDevice) Stop() {
 	d.deviceadvertiser.Bye()
 	d.deviceadvertiser.Close()
 	d.serviceadvertiser.Bye()
-	d.serviceadvertiser.Close()		
+	d.serviceadvertiser.Close()
 }

@@ -1,4 +1,5 @@
 name: DVB HB
+serverport: 8080
 tunerconfig:
   command: tsp
   args: -I dvb -a ${tunerindex} ${source} -P cutoff ${_portcommand_} -P zap ${program} -O ip 127.0.0.1:${_portout_}
