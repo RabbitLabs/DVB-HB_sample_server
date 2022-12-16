@@ -13,24 +13,26 @@ import (
 	"github.com/koron/go-ssdp"
 )
 
-var rootadvertiser *ssdp.Advertiser
+type UPnPDevice struct {
+	rootadvertiser *ssdp.Advertiser
+	deviceadvertiser *ssdp.Advertiser
+	serviceadvertiser *ssdp.Advertiser
 
-//var hbadvertiser *ssdp.Advertiser
-var adticker *time.Ticker
-var deviceuuid string
+	adticker *time.Ticker
+	device_uuid string
+	local_address string
+
+	server_name string
+	icon_path string
+
+	server_desc_path string
+	server_port int
+}
 
 const defaultuuid = "uuid:11e77140-70dc-4d30-80dd-c6ddae09bd41"
 
-// integrate icon file
-//go:embed icon.png
-var icondata []byte
-
-const SERVERDESCPATH = "/server.xml"
-const ICONPATH = "/icon.png"
-const SERVERSTRING = "DVB-HB Sample Server 1.0"
-
 // this trick is to get local IP
-func upnp_getlocal_address() string {
+func (d *UPnPDevice) getlocal_address() {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		log.Fatal(err)
@@ -39,15 +41,16 @@ func upnp_getlocal_address() string {
 
 	addr := conn.LocalAddr().String()
 
-	return strings.Split(addr, ":")[0]
+	d.local_address= strings.Split(addr, ":")[0]
 }
 
 // generate a unique id from MAC address
-func upnp_generate_uuid() string {
+func (d *UPnPDevice) generate_uuid() {
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		// return fake static uuid
-		return defaultuuid
+		// use use static uuid
+		d.device_uuid = defaultuuid
+		return 
 	}
 
 	// scan interaces
@@ -62,6 +65,7 @@ func upnp_generate_uuid() string {
 			// hash MAC address with SHA 256
 			h := sha256.New()
 			h.Write(i.HardwareAddr)
+			//h.Write([]byte(time.Now().Format(time.UnixDate)))
 			hashedMAC := h.Sum(nil)
 
 			log.Printf("Generate UUID from MAC address of %s\n", i.Name)
@@ -72,98 +76,145 @@ func upnp_generate_uuid() string {
 			fmt.Fprintf(&result, "%02x%02x-", hashedMAC[4], hashedMAC[5])
 			fmt.Fprintf(&result, "%02x%02x-", hashedMAC[6], hashedMAC[7])
 			fmt.Fprintf(&result, "%02x%02x-", hashedMAC[8], hashedMAC[9])
-			fmt.Fprintf(&result, "%02x%02X%02X%02X%02X%02X", hashedMAC[10], hashedMAC[11], hashedMAC[12], hashedMAC[13], hashedMAC[14], hashedMAC[15])
+			fmt.Fprintf(&result, "%02x%02x%02x%02x%02x%02x", hashedMAC[10], hashedMAC[11], hashedMAC[12], hashedMAC[13], hashedMAC[14], hashedMAC[15])
 
 			log.Println(result.String())
 
-			return result.String()
+			d.device_uuid = result.String()
+
+			return
 		}
 	}
 
-	return defaultuuid
+	// use use static uuid
+	d.device_uuid = defaultuuid
 }
 
-func UPNPDeviceDescHandler(w http.ResponseWriter, r *http.Request) {
+func (d *UPnPDevice) DeviceDescHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/xml")
 
 	log.Printf("Request UPNP root description from %s", r.RemoteAddr)
 
-	w.Write([]byte("<?xml version=\"1.0\"?>\r\n"))
-	w.Write([]byte("<root xmlns=\"urn:schemas-upnp-org:device-1-0\" configId=\"0\">\r\n"))
-	w.Write([]byte("<specVersion>\r\n"))
-	w.Write([]byte("<major>1</major>\r\n"))
-	w.Write([]byte("<minor>1</minor>\r\n"))
-	w.Write([]byte("</specVersion>\r\n"))
-	w.Write([]byte("<device>\r\n"))
-	w.Write([]byte("<deviceType>urn:ses-com:device:SatIPServer:1</deviceType>\r\n"))
-	w.Write([]byte("<friendlyName>Home Broadcast Server</friendlyName>\r\n"))
-	w.Write([]byte("<manufacturer>DVB</manufacturer>\r\n"))
-	w.Write([]byte("<manufacturerURL>http://dvb.org</manufacturerURL>\r\n"))
-	w.Write([]byte("<modelDescription>Sample Home Broadcasting Server</modelDescription>\r\n"))
-	w.Write([]byte("<modelName>Sample</modelName>\r\n"))
-	w.Write([]byte("<modelNumber>0</modelNumber>\r\n"))
-	w.Write([]byte("<modelURL>http://dvb.org</modelURL>\r\n"))
-	w.Write([]byte("<serialNumber>0</serialNumber>\r\n"))
+	w.Write([]byte("<?xml version=\"1.0\"?>\n"))
+	w.Write([]byte("<root xmlns=\"urn:schemas-upnp-org:device-1-0\" configId=\"0\">\n"))
+	w.Write([]byte("<specVersion>\n"))
+	w.Write([]byte("<major>1</major>\n"))
+	w.Write([]byte("<minor>1</minor>\n"))
+	w.Write([]byte("</specVersion>\n"))
+	w.Write([]byte("<device>\n"))
+	w.Write([]byte("<deviceType>urn:ses-com:device:SatIPServer:1</deviceType>\n"))
+	w.Write([]byte("<friendlyName>Home Broadcast Server</friendlyName>\n"))
+	w.Write([]byte("<manufacturer>DVB</manufacturer>\n"))
+	w.Write([]byte("<manufacturerURL>http://dvb.org</manufacturerURL>\n"))
+	w.Write([]byte("<modelDescription>Sample Home Broadcasting Server</modelDescription>\n"))
+	w.Write([]byte("<modelName>Sample</modelName>\n"))
+	w.Write([]byte("<modelNumber>0</modelNumber>\n"))
+	w.Write([]byte("<modelURL>http://dvb.org</modelURL>\n"))
+	w.Write([]byte("<serialNumber>0</serialNumber>\n"))
 	w.Write([]byte("<UDN>"))
-	w.Write([]byte(deviceuuid))
-	w.Write([]byte("</UDN>\r\n"))
-	w.Write([]byte("<UPC>Universal Product Code</UPC>\r\n"))
-	w.Write([]byte("<iconList>\r\n"))
-	w.Write([]byte("<icon>\r\n"))
-	w.Write([]byte("<mimetype>image/png</mimetype>\r\n"))
-	w.Write([]byte("<width>64</width>\r\n"))
-	w.Write([]byte("<height>64</height>\r\n"))
-	w.Write([]byte("<depth>24</depth>\r\n"))
-	w.Write([]byte("<url>/icon.png</url>\r\n"))
-	w.Write([]byte("</icon>\r\n"))
-	w.Write([]byte("</iconList>\r\n"))
-	w.Write([]byte("<presentationURL>/index.html</presentationURL>\r\n"))
-	w.Write([]byte("</device>\r\n"))
-	w.Write([]byte("</root>\r\n"))
+	w.Write([]byte(d.device_uuid))
+	w.Write([]byte("</UDN>\n"))
+	w.Write([]byte("<UPC>Universal Product Code</UPC>\n"))
+	w.Write([]byte("<presentationURL>http://"))
+	w.Write([]byte(d.local_address))
+	w.Write([]byte("/index.html</presentationURL>\n"))
+
+	w.Write([]byte("<iconList>\n"))
+	w.Write([]byte("<icon>\n"))
+	w.Write([]byte("<mimetype>image/png</mimetype>\n"))
+	w.Write([]byte("<width>64</width>\n"))
+	w.Write([]byte("<height>64</height>\n"))
+	w.Write([]byte("<depth>24</depth>\n"))
+	w.Write([]byte("<url>/icon.png</url>\n"))
+	w.Write([]byte("</icon>\n"))
+	w.Write([]byte("</iconList>\n"))
+
+	// w.Write([]byte("<serviceList>"))
+	// w.Write([]byte("<service>"))
+	// w.Write([]byte("<serviceType>urn:ses-com:device:SatIPServer:1</serviceType>"))
+	// w.Write([]byte("<serviceId>urn:ses-com:serviceId:SatIPServer</serviceId>"))
+	// w.Write([]byte("</service>"))
+	// w.Write([]byte("</serviceList>"))
+
+	w.Write([]byte("</device>\n"))
+	w.Write([]byte("</root>\n"))
 }
 
-func UPNPIconHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "image/png")
-	w.Write(icondata)
-}
-
-func UPNPStart(svrmux *http.ServeMux, serverport int, location string) {
+func (d *UPnPDevice) Start(svrmux *http.ServeMux) {
 	var err error
-	local_address := upnp_getlocal_address()
+	// compute internal values
+	d.getlocal_address()
+	d.generate_uuid()
 
-	locationroot := strings.Join([]string{"http://", local_address, ":", fmt.Sprintf("%d", serverport)}, "")
+	locationroot := strings.Join([]string{"http://", d.local_address, ":", fmt.Sprintf("%d", d.server_port)}, "")
 
 	log.Printf("UPNP base location %s\n", locationroot)
 
-	deviceuuid = upnp_generate_uuid()
+	server_desc_url := locationroot + d.server_desc_path;
 
-	rootadvertiser, err = ssdp.Advertise(
-		"upnp:rootdevice",              // send as "ST"
-		deviceuuid+"::upnp:rootdevice", // send as "USN"
-		locationroot+SERVERDESCPATH,    // send as "LOCATION"
-		SERVERSTRING,                   // send as "SERVER"
-		1800)                           // send as "maxAge" in "CACHE-CONTROL"
+	// ROOT ADVERTISER
+	d.rootadvertiser, err = ssdp.Advertise(
+		"upnp:rootdevice",                 // send as "ST"
+		d.device_uuid+"::upnp:rootdevice", // send as "USN"
+		server_desc_url,                  // send as "LOCATION"
+		d.server_name,                     // send as "SERVER"
+		1800)                              // send as "maxAge" in "CACHE-CONTROL"
 
 	if err != nil {
 		panic(err)
 	}
 
-	// add handler for device description and icon
-	svrmux.HandleFunc(SERVERDESCPATH, UPNPDeviceDescHandler)
-	svrmux.HandleFunc(ICONPATH, UPNPIconHandler)
+	// DEVICE ADVERTISER
+	d.deviceadvertiser, err = ssdp.Advertise(
+		d.device_uuid,            // send as "ST"
+		d.device_uuid,            // send as "USN"
+		server_desc_url,         // send as "LOCATION"
+		d.server_name,            // send as "SERVER"
+		1800)                     // send as "maxAge" in "CACHE-CONTROL"
 
-	adticker = time.NewTicker(300 * time.Second)
+	if err != nil {
+		panic(err)
+	}
+
+	// SERVICE ADVERTISER
+	d.serviceadvertiser, err = ssdp.Advertise(
+		"urn:ses-com:device:SatIPServer:1",                 // send as "ST"
+		d.device_uuid+"::urn:ses-com:device:SatIPServer:1", // send as "USN"
+		server_desc_url,                  // send as "LOCATION"
+		d.server_name,                     // send as "SERVER"
+		1800)                              // send as "maxAge" in "CACHE-CONTROL"
+
+	if err != nil {
+		panic(err)
+	}
+
+
+	// add handler for device description and icon
+	svrmux.HandleFunc(d.server_desc_path, d.DeviceDescHandler)
+
+	d.adticker = time.NewTicker(300 * time.Second)
+
+	log.Println("SSDP first advertise")
+	d.rootadvertiser.Alive()
+	d.deviceadvertiser.Alive()
+	d.serviceadvertiser.Alive()
 
 	go func() {
-		for _ = range adticker.C {
+		for _ = range d.adticker.C {
 			log.Println("SSDP advertise")
-			rootadvertiser.Alive()
+			d.rootadvertiser.Alive()
+			d.deviceadvertiser.Alive()
+			d.serviceadvertiser.Alive()
 		}
 	}()
 }
 
-func UPNPStop() {
-	adticker.Stop()
-	rootadvertiser.Bye()
-	rootadvertiser.Close()
+func (d *UPnPDevice) Stop() {
+	d.adticker.Stop()
+	d.rootadvertiser.Bye()
+	d.rootadvertiser.Close()
+	d.deviceadvertiser.Bye()
+	d.deviceadvertiser.Close()
+	d.serviceadvertiser.Bye()
+	d.serviceadvertiser.Close()		
 }

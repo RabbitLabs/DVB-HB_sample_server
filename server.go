@@ -28,6 +28,14 @@ var deviceconfig DeviceConfig
 
 var tm TunerManager
 
+const ICONPATH = "/icon.png"
+
+// integrate icon file
+//go:embed icon.png
+var icondata []byte
+
+var ServerUPnPDevice UPnPDevice
+
 func configurationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/javascript")
 
@@ -45,6 +53,11 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		fileServer.ServeHTTP(w, r)
 	}
+}
+
+func IconHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(icondata)
 }
 
 func main() {
@@ -122,11 +135,16 @@ func main() {
 	fmt.Printf("Starting server at port %d\n", deviceconfig.ServerPort)
 	svr.Addr = fmt.Sprintf(":%d", deviceconfig.ServerPort)
 
-	UPNPStart(&svrmux, deviceconfig.ServerPort, "server.xml")
+	svrmux.HandleFunc(ICONPATH, IconHandler)
+
+	ServerUPnPDevice.icon_path = ICONPATH
+	ServerUPnPDevice.server_port = deviceconfig.ServerPort
+	ServerUPnPDevice.server_desc_path = "/server.xml"
+	ServerUPnPDevice.server_name = "DVB-HB Sample Server 1.0"
+	ServerUPnPDevice.Start(&svrmux)
 
 	// run server
 	if err := svr.ListenAndServe(); err != nil {
-
 		log.Fatal(err)
 	}
 
@@ -142,6 +160,8 @@ func main() {
 	for i := range deviceconfig.helpertoolsruntime {
 		deviceconfig.helpertoolsruntime[i].Stop()
 	} 
+
+	ServerUPnPDevice.Stop()
 
 	log.Println("Finished, exit")
 
