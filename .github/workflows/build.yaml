@@ -21,7 +21,10 @@ jobs:
         run: go build -v ./...
       
       - name: 'Upload Artifact'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: 'server linux'
-          path: server        
+          path: |
+            server        
+            democonfig.yaml
+            test_tuner_config.yaml
